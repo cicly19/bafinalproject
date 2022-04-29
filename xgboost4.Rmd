@@ -1,0 +1,132 @@
+---
+title: "project2"
+author: "xiao"
+date: "11/23/2020"
+output: html_document
+---
+
+```{r}
+library(xgboost) # for xgboost
+library(tidyverse) # general utility functions
+
+# Setting working directory
+setwd("C:/Users/sarah/Downloads")
+
+# Reading CSV
+app<- read.csv(file = 'clean_data.csv',header = TRUE, stringsAsFactors = TRUE)
+dim(app)
+names(app)
+```
+
+
+```{r}
+
+#load libraries
+library(xgboost)
+library(caret)
+set.seed(1234)
+
+indexes = createDataPartition(app$TARGET, p = .70, list = F)
+train = app[indexes, ]
+test = app[-indexes, ]
+
+train <- data.matrix(train)
+test <- data.matrix(test)
+
+train_x = train[, -2]
+train_label = train[,2]
+
+test_x = test[, -2]
+test_label = test[,2]
+
+dtrain = xgb.DMatrix(data = train_x, label = train_label)
+dtest = xgb.DMatrix(data = test_x, label =test_label )
+
+
+
+
+```
+
+
+```{r}
+model <- xgboost(data = dtrain, # the data   
+                 nround = 2, # max number of boosting iterations
+                 objective = "binary:logistic")  # the objective
+```
+
+```{r}
+
+# generate predictions for our held-out testing data
+pred <- predict(model, dtest)
+
+# get & print the classification error
+err <- mean(as.numeric(pred > 0.5) != test_label)
+print(paste("test-error=", err))
+```
+```{r}
+model_tuned <- xgboost(data = dtrain, # the data           
+                 max.depth = 3, # the maximum depth of each decision tree
+                 nround = 2, # max number of boosting iterations
+                 objective = "binary:logistic") # the objective function 
+
+# generate predictions for our held-out testing data
+pred <- predict(model_tuned, dtest)
+ 
+# get & print the classification error
+err <- mean(as.numeric(pred > 0.5) != test_label)
+print(paste("test-error=", err))
+```
+```{r}
+# get the number of negative & positive cases in our data
+negative_cases <- sum(train_label == FALSE)
+postive_cases <- sum(train_label == TRUE)
+
+# train a model using our training data
+model_tuned <- xgboost(data = dtrain, # the data           
+                 max.depth = 3, # the maximum depth of each decision tree
+                 nround = 10, # number of boosting rounds
+                 early_stopping_rounds = 3, # if we dont see an improvement in this many rounds, stop
+                 objective = "binary:logistic", # the objective function
+                 scale_pos_weight = negative_cases/postive_cases) # control for imbalanced classes
+
+# generate predictions for our held-out testing data
+pred <- predict(model_tuned, dtest)
+
+# get & print the classification error
+err <- mean(as.numeric(pred > 0.5) != test_label)
+print(paste("test-error=", err))
+```
+
+```{r}
+# train a model using our training data
+model_tuned <- xgboost(data = dtrain, # the data           
+                 max.depth = 3, # the maximum depth of each decision tree
+                 nround = 10, # number of boosting rounds
+                 early_stopping_rounds = 10, # if we dont see an improvement in this many rounds, stop
+                 objective = "binary:logistic", # the objective function
+                 scale_pos_weight = negative_cases/postive_cases, # control for imbalanced classes
+                 gamma = 1) # add a regularization term
+
+# generate predictions for our held-out testing data
+pred <- predict(model_tuned, dtest)
+
+# get & print the classification error
+err <- mean(as.numeric(pred > 0.5) != test_label)
+print(paste("test-error=", err))
+```
+```{r}
+app_m <- data.matrix(app)
+importance_matrix <- xgb.importance(names(app_m), model = model)
+
+# and plot it!
+xgb.plot.importance(importance_matrix)
+```
+
+```{r}
+
+pred <-  as.numeric(pred>0.5)
+
+library(caret)
+confusionMatrix(factor(pred),factor(test[,2]))
+
+```
